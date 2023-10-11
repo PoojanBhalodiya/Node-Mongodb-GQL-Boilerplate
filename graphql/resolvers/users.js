@@ -1,6 +1,7 @@
 const Message = require("../../models/User");
 const { ApolloError } = require("apollo-server-errors");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const User = require("../../models/User");
 
 module.exports = {
@@ -12,10 +13,11 @@ module.exports = {
       // Throw error if that user exist
       if (oldUser) {
         throw new ApolloError(
-          "Auser is already register with the email" + email,
+          "A user is already register with the email" + email,
           "USER_ALREADY_EXISTS"
         );
       }
+
       //Encrypt password
       var ecryptedPassword = await bcrypt.hash(password, 10);
 
@@ -24,6 +26,14 @@ module.exports = {
         email: email.toLowerCase(),
         password: ecryptedPassword,
       });
+      //create our JWT (attach to our User model)
+      const token = jwt.sign({ user_id: newUser._id, email }, "UNSAFE_STRING",
+      {
+        expiresIn: "2h"
+      }
+      );
+
+      newUser.token = token;
       // save our user in MongoDB
       const res = await newUser.save();
 
@@ -38,13 +48,21 @@ module.exports = {
 
       //check if the enter password equals the encrypted password
       if (user && (await bcrypt.compare(password, user.password))) {
+        //check a NEW token
+      
+        const token = jwt.sign({ user_id: user._id, email }, "UNSAFE_STRING",
+        {
+          expiresIn: "2h"
+        }
+        );
+        user.token = token;
         return {
           id: user.id,
           ...user._doc,
         };
       } else {
         //If user doesn't exists, return error
-        throw new ApolloError("Incorect passwor", "INCORRECT_PASSWORD");
+        throw new ApolloError("Incorect password", "INCORRECT_PASSWORD");
       }
     },
   },
